@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trò Chơi Trắc Nghiệm Sinh Học</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
+        body { font-family: 'Quicksand', sans-serif; background: #f0f9ff; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .answer-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .answer-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .progress-bar { transition: width 0.3s ease; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div id="game-container" class="max-w-2xl w-full glass rounded-3xl shadow-2xl p-6 md:p-8 relative overflow-hidden">
+        <!-- Progress Header -->
+        <div class="mb-8">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-bold text-blue-600 uppercase tracking-wider" id="current-index">Câu hỏi 1/93</span>
+                <span class="text-sm font-bold text-green-600" id="current-score">Điểm: 0</span>
+            </div>
+            <div class="w-full h-3 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+                <div id="progress" class="progress-bar h-full bg-gradient-to-r from-blue-500 to-indigo-500" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Question Area -->
+        <div id="question-container" class="space-y-6">
+            <h2 id="question-text" class="text-xl md:text-2xl font-bold text-slate-800 leading-tight min-h-[80px]">
+                Đang tải câu hỏi...
+            </h2>
+            
+            <div id="answers-grid" class="grid grid-cols-1 gap-3">
+                <!-- Answers will be injected here -->
+            </div>
+        </div>
+
+        <!-- Feedback & Controls -->
+        <div id="feedback" class="hidden mt-6 p-4 rounded-2xl text-center font-bold text-lg animate-bounce"></div>
+        
+        <button id="next-btn" class="hidden mt-8 w-full py-4 bg-slate-800 text-white rounded-2xl font-bold text-lg hover:bg-slate-700 transition-colors shadow-lg">
+            Tiếp theo <i class="fas fa-arrow-right ml-2"></i>
+        </button>
+
+        <!-- Result Screen -->
+        <div id="result-screen" class="hidden text-center space-y-6 py-8">
+            <div class="text-6xl mb-4">🎉</div>
+            <h2 class="text-3xl font-bold text-slate-800">Hoàn thành!</h2>
+            <p class="text-xl text-slate-600" id="final-score"></p>
+            <div id="score-comment" class="font-medium text-blue-600"></div>
+            <button onclick="resetGame()" class="mt-4 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg">
+                Chơi lại từ đầu
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const quizData = [
+            { q: "Ở động vật, sinh trưởng và phát triển qua biến thái hoàn toàn và qua biến thái không hoàn toàn giống nhau ở điểm nào?", a: ["Đều không qua giai đoạn lột xác", "Con non khác con trưởng thành", "Con non giống con trưởng thành", "Đều phải qua giai đoạn lột xác"], c: 3 },
+            { q: "Toàn bộ những biến đổi diễn ra trong chu kì sống của cá thể, bao gồm sự thay đổi về số lượng tế bào, cấu trúc, hình thái và trạng thái sinh lí gọi là gì?", a: ["Sinh trưởng", "Phát triển", "Sinh sản", "Cảm ứng"], c: 1 },
+            { q: "Hình dạng chim bồ câu không giống với hình dạng các loài khác là do quá trình nào?", a: ["Quá trình phân hóa tế bào", "Quá trình phát sinh hình thái", "Quá trình thay đổi cấu trúc tế bào", "Quá trình phát sinh chức năng của cơ thể"], c: 1 },
+            { q: "Cho các hiện tượng sau: (1) Sự phát triển phôi gà rồi nở ra gà con, (2) Trứng muỗi nở ra bọ gậy rồi phát triển thành muỗi, (3) Mèo mẹ đẻ ra mèo con, (4) Nòng nọc phát triển thành ếch con. Các hình thức phát triển qua biến thái là:", a: ["(1), (2) và (4)", "(2) và (4)", "(1), (2), (3) và (4)", "(1) và (3)"], c: 1 },
+            { q: "Quan sát vòng đời của muỗi. Kiểu phát triển của muỗi là gì?", a: ["Không qua biến thái", "Biến thái không hoàn toàn", "Biến thái hoàn toàn", "Biến thái một phần cơ thể"], c: 2 },
+            { q: "Nhóm sinh vật phát triển qua biến thái không hoàn toàn là nhóm nào? I. Cua; Mối; Tôm; Gián; Dế | II. Chuồn chuồn; Ruồi nhà; Ong; Bọ ngựa | III. Chuột; Mèo; Cá; Gà | IV. Cá; Cua; Muỗi; Ong", a: ["Nhóm I", "Nhóm II", "Nhóm III", "Nhóm IV"], c: 0 },
+            { q: "Tạo chuồng trại thoáng mát, sử dụng cỏ sạch, cho bò nghe nhạc,... là các biện pháp gì?", a: ["Cải thiện nguồn vật liệu di truyền nhằm cải tạo giống", "Cải thiện môi trường sống nhằm tăng năng suất vật nuôi", "Cải tạo môi trường sống nhằm tạo được giống vật nuôi tốt cho năng suất cao", "Cải thiện chất lượng sản phẩm đầu ra, thân thiện môi trường"], c: 1 },
+            { q: "Khi trong thức ăn thiếu iodine thì hormone nào sau đây sẽ không được tạo thành ở động vật có xương sống?", a: ["Testosterone", "Thyroxine", "Estrogen", "Juvenile"], c: 1 },
+            { q: "Hormone nào có vai trò kích thích sinh trưởng và phát triển mạnh ở thời kì dậy thì ở nữ?", a: ["Hormone sinh trưởng GnRH", "Hormone thyroxine", "Hormone estrogen", "Hormone testosterone"], c: 2 },
+            { q: "Sinh trưởng và phát triển ở động vật không qua biến thái có đặc điểm gì?", a: ["Con non có cấu tạo khác con trưởng thành", "Con non lột xác hoàn thiện cơ thể giống con trưởng thành", "Con non có sự lột xác biến đổi thành con trưởng thành", "Con non có cấu tạo giống con trưởng thành"], c: 3 },
+            { q: "Mỗi mảnh tách ra từ cơ thể mẹ có thể tái sinh thành một cơ thể hoàn chỉnh là kiểu sinh sản thường gặp ở sinh vật nào?", a: ["Bọt biển", "Ruột khoang", "Chân khớp (tôm, cua)", "Thằn lằn"], c: 0 },
+            { q: "Đẻ con (thai sinh) là quá trình:", a: ["phôi phát triển trong cơ thể mẹ và được nuôi dưỡng qua nhau thai.", "phôi phát triển trong cơ thể mẹ nhờ chất dinh dưỡng của noãn hoàng.", "phôi phát triển trong cơ thể mẹ không qua thụ tinh.", "phôi phát triển trong trứng và được mẹ ấp."], c: 0 },
+            { q: "Thứ tự đúng của kỹ thuật giâm cành: (1) rễ mọc nhiều/đủ dài -> chuyển vườn ươm, (2) cắt vát đoạn 10-15cm, (3) đủ rễ lá -> trồng đại trà, (4) cắm trực tiếp/xử lý kích rễ.", a: ["(1) → (4) → (2) → (3)", "(2) → (4) → (1) → (3)", "(4) → (2) → (1) → (3)", "(4) → (2) → (3) → (1)"], c: 1 },
+            { q: "Nhận định nào KHÔNG đúng về sự khác nhau giữa sinh trưởng sơ cấp và thứ cấp?", a: ["Sinh trưởng sơ cấp làm tăng chiều dài, thứ cấp làm tăng đường kính.", "Sơ cấp ở thân non, thứ cấp ở thân trưởng thành.", "MS đỉnh/lóng tham gia vào thứ cấp, MS bên tham gia vào sơ cấp.", "Sơ cấp ở cả 1 và 2 lá mầm, thứ cấp chủ yếu ở 2 lá mầm."], c: 2 },
+            { q: "Phát biểu nào KHÔNG đúng khi nói về thụ tinh kép?", a: ["Chỉ xảy ra ở thực vật hạt kín.", "Gồm 2 giao tử đực: 1 + trứng -> hợp tử, 1 + nhân cực -> nội nhũ.", "Là quá trình 2 giao tử đực kết hợp với trứng của túi phôi hình thành hợp tử.", "Tạo chất dinh dưỡng dự trữ cho quá trình phát triển phôi."], c: 2 },
+            { q: "Có bao nhiêu yếu tố ảnh hưởng đến sinh trưởng phát triển thực vật: (1) Ánh sáng, (2) Nhiệt độ, (3) Nước, (4) Dinh dưỡng, (5) Độ ẩm?", a: ["2", "3", "4", "5"], c: 3 },
+            { q: "Biện pháp KHÔNG được dùng để điều khiển số con ở động vật là:", a: ["thụ tinh nhân tạo.", "thay đổi yếu tố môi trường.", "nuôi cấy phôi.", "kĩ thuật lọc tinh trùng."], c: 2 },
+            { q: "Phát triển không qua biến thái KHÁC phát triển qua biến thái không hoàn toàn ở điểm:", a: ["không phải qua giai đoạn lột xác", "con non giống con trưởng thành", "phải qua giai đoạn lột xác", "con non khác con trưởng thành"], c: 0 },
+            { q: "Phát biểu KHÔNG đúng về đặc điểm sinh trưởng và phát triển ở động vật?", a: ["Tốc độ không đều theo thời gian.", "Tốc độ ở các phần khác nhau không giống nhau.", "Các cơ quan của phôi thai phát triển theo thời gian giống nhau.", "Thời gian đạt kích thước tối đa khác nhau ở các loài."], c: 2 },
+            { q: "Loài nào sinh trưởng và phát triển không qua biến thái?", a: ["Châu chấu, ếch đồng, cá rô.", "Bướm, mèo, cá rô.", "Bồ câu, rắn, mèo.", "Rắn, ruồi giấm, gà."], c: 2 },
+            { q: "Hormone kích thích sâu lột xác biến thành nhộng và bướm là:", a: ["ecdysone, juvenile.", "thyroxine, testosterone.", "estrogen, ecdysone", "ecdysone."], c: 3 },
+            { q: "Vitamin có vai trò chuyển hóa canxi để hình thành xương là:", a: ["vitamin A.", "vitamin D.", "vitamin E", "vitamin K"], c: 1 },
+            { q: "Yếu tố môi trường tham gia điều hoà quá trình sinh sản bằng cách nào?", a: ["Ảnh hưởng trực tiếp cấu tạo cơ quan sinh dục.", "Làm thay đổi thân nhiệt ảnh hưởng thụ tinh.", "Độ ẩm/nhiệt độ tác động tuyến tiền liệt và tử cung.", "Ảnh hưởng đến hoạt động của các hormone sinh dục."], c: 3 },
+            { q: "Hạt bao gồm những phần nào?", a: ["vỏ hạt và nội nhũ", "vỏ hạt và hạt", "nội nhũ và phôi nhũ", "Vỏ, nội nhũ và phôi"], c: 3 },
+            { q: "Phương pháp nhân giống vô tính nào có hệ số nhân giống cao, sạch bệnh và bảo quản lâu dài?", a: ["Giâm cành", "Chiết cành.", "Ghép.", "Nuôi cấy mô tế bào."], c: 3 },
+            { q: "Cơ sở tế bào học của sinh sản vô tính là quá trình:", a: ["nguyên phân.", "giảm phân", "thụ tinh.", "nguyên phân và giảm phân."], c: 0 },
+            { q: "Giâm cành, chiết cành dựa trên nguyên lí nào sau đây?", a: ["Sinh sản hữu tính.", "Sinh sản sinh dưỡng.", "Sinh sản bằng bào tử.", "Vô tính và hữu tính."], c: 1 },
+            { q: "Trong trồng trọt, để xử lý hạt nảy mầm và kích thích sự rụng lá, người ta sử dụng:", a: ["AAB", "Auxin", "Gibêrelin", "Êtilen"], c: 3 },
+            { q: "Loại mô phân sinh nào không có ở cây một lá mầm?", a: ["Mô phân sinh bên", "Mô phân sinh lóng.", "Mô phân sinh đỉnh cây.", "Mô phân sinh đỉnh rễ"], c: 0 },
+            { q: "Chiết cành ở cây ăn quả nhằm mục đích chính là:", a: ["tạo số lượng lớn thời gian ngắn.", "tạo giống sạch bệnh virus.", "rút ngắn thời gian sinh trưởng, duy trì đặc tính tốt.", "tăng khả năng chịu rét."], c: 2 },
+            { q: "So với sinh sản vô tính, sinh sản hữu tính có ưu điểm:", a: ["Con giống hệt mẹ.", "Tăng khả năng thích nghi môi trường biến đổi.", "Cá thể độc lập vẫn tạo đời con.", "Dễ chết hàng loạt khi điều kiện thay đổi."], c: 1 },
+            { q: "Thể giao tử cái ở thực vật là cấu trúc nào?", a: ["hợp tử.", "phôi.", "túi phôi.", " hạt phấn."], c: 2 },
+            { q: "Mô phân sinh ở thực vật là:", a: ["tế bào chưa phân hóa, nguyên phân hạn chế.", "tế bào chưa phân hóa, có khả năng chia tạo tế bào mới suốt đời.", "tế bào chưa phân hóa, mất dần khả năng nguyên phân.", "tế bào phân hóa chuyên hóa."], c: 1 },
+            { q: "Phát biểu đúng về mô phân sinh bên và mô phân sinh lóng:", a: ["MS bên ở 1 lá mầm, lóng ở 2 lá mầm.", "Cả hai có ở 1 lá mầm.", "MS bên ở 2 lá mầm, lóng ở 1 lá mầm.", "Cả hai có ở 2 lá mầm."], c: 2 },
+            { q: "Hình thức sinh dưỡng gồm: (1) Giâm hom sắn, (2) Tre nảy chồi, (3) Gieo mướp, (4) Từ củ khoai lang.", a: ["(1) và (2)", "(2)", "(1), (2) và (4)", "(2), (3) và (4)"], c: 2 },
+            { q: "Khi nói về sinh trưởng thứ cấp, phát biểu nào đúng?", a: ["Là gia tăng chiều dài.", "Do hoạt động của mô phân sinh bên.", "Có ở tất cả loài thực vật.", "Chỉ có ở thực vật một lá mầm."], c: 1 },
+            { q: "Thứ tự mô phân sinh ở cây 2 lá mầm từ ngọn đến rễ:", a: ["MS đỉnh ngọn → MS bên → MS đỉnh rễ.", "MS đỉnh ngọn → MS đỉnh rễ → MS bên", "MS đỉnh rễ → MS bên → MS bên.", "MS bên → MS đỉnh ngọn → MS đỉnh rễ"], c: 0 },
+            { q: "Ở cây một lá mầm, mô phân sinh gồm có:", a: ["đỉnh và bên.", "lóng và bên.", "đỉnh và lóng.", "đỉnh và rễ."], c: 2 },
+            { q: "Ở cây hai lá mầm, thân và rễ dài ra là nhờ hoạt động của:", a: ["MS cành", "MS bên.", "MS lóng", "MS đỉnh."], c: 3 },
+            { q: "Các hormone kích thích sinh trưởng bao gồm:", a: ["auxin, gibberellin, cytokinin.", "auxin, ethylene, abscisic acid.", "auxin, abscisic acid, cytokinin.", "auxin, gibberellin, ethylene."], c: 0 },
+            { q: "Cơ sở sinh lí của công nghệ nuôi cấy invitro thực vật là:", a: ["tính toàn năng của tế bào", "khả năng phân hóa", "khả năng chuyển hóa", "khả năng cảm ứng"], c: 0 },
+            { q: "Loại mô phân sinh không có ở cây lúa là:", a: ["đỉnh rễ.", "lóng.", "bên.", "đỉnh thân"], c: 2 },
+            { q: "Vật liệu nuôi cấy in vitro tạo cây hoàn chỉnh, nhân giống nhanh là:", a: ["MS bên.", "MS lóng.", "MS đỉnh rễ.", "MS đỉnh ngọn."], c: 3 },
+            { q: "Chất nào sau đây không phải là chất kích thích sinh trưởng?", a: ["GA.", "Kinetin.", "IAA.", "AAB"], c: 3 },
+            { q: "Hormone kích thích ra rễ của cành giâm, cành chiết là:", a: ["gibberellin.", "auxin.", "cytokinin.", "kinetin."], c: 1 },
+            { q: "Việc sản xuất giá đỗ và mạch nha ứng dụng giai đoạn nào?", a: ["Mọc lá.", "Nảy mầm.", "Ra hoa.", "Tạo quả."], c: 1 },
+            { q: "Quả được hình thành từ:", a: ["bầu nhụy", "noãn thụ tinh", "noãn", "bầu nhị"], c: 0 },
+            { q: "Sinh sản vô tính ở thực vật là cây non mang đặc tính:", a: ["giống mẹ, có kết hợp giao tử.", "giống mẹ, không kết hợp giao tử.", "giống bố mẹ, có kết hợp giao tử.", "giống hoặc khác mẹ, không kết hợp giao tử."], c: 1 },
+            { q: "Điều KHÔNG đúng về thụ tinh kép: (1) giao tử đực + nhân trung tâm, (2) giao tử đực + trứng, (3) nhân dinh dưỡng + nhân trung tâm, (4) nhân sinh dưỡng + trứng.", a: ["(1) và (3)", "(1) và (2)", "(2) và (4)", "(1) và (4)"], c: 3 },
+            { q: "Khoai tây sinh sản bằng:", a: ["rễ củ", "thân củ.", "thân rễ", "lá."], c: 1 },
+            { q: "Hình thức sinh sản của cây rêu là:", a: ["bào tử.", "phân đôi.", "sinh dưỡng", "hữu tính."], c: 0 },
+            { q: "Hình thức thụ tinh kép xảy ra ở:", a: ["cây rêu.", "cây hạt trần", "cây dương xỉ.", "cây hạt kín."], c: 3 },
+            { q: "Điều KHÔNG đúng khi nói về quá trình hình thành quả:", a: ["Quả do bầu nhụy phát triển thành.", "Quả không thụ tinh là quả giả.", "Quả không hạt chưa hẳn là đơn tính.", "Quả không hạt luôn là quả đơn tính"], c: 3 },
+            { q: "Ưu thế của sinh sản hữu tính so với vô tính ở thực vật?", a: ["Thích nghi tốt môi trường biến đổi.", "Tạo cá thể giống hệt nhau.", "Duy trì ổn định tính trạng di truyền.", "Là hình thức không phổ biến."], c: 0 },
+            { q: "Điều KHÔNG đúng về thụ phấn và thụ tinh:", a: ["Thụ phấn dẫn đến thụ tinh.", "Có thể thụ tinh mà không cần thụ phấn.", "Có thể thụ tinh nhưng không tạo hợp tử.", "Có thể thụ phấn mà không thụ tinh."], c: 1 },
+            { q: "Ý nghĩa sinh học của thụ tinh kép ở thực vật hạt kín là:", a: ["tiết kiệm vật liệu di truyền.", "hình thành nội nhũ cho phôi phát triển.", "hình thành tế bào tam bội.", "cung cấp dinh dưỡng cho phôi và cá thể mới thời kì đầu."], c: 3 },
+            { q: "Phát biểu nào sau đây KHÔNG đúng?", a: ["Nội nhũ nuôi dưỡng phôi.", "Chỉ cây 1 lá mầm mới có nội nhũ.", "Hạt không nội nhũ thì không thụ tinh kép.", "Cây 2 lá mầm dự trữ dinh dưỡng ở lá mầm."], c: 2 },
+            { q: "Có bao nhiêu phát biểu đúng về ưu điểm cành chiết/giâm: I. Giữ tính trạng mong muốn | II. Sớm ra hoa kết quả | III. Lâu già cỗi | IV. Tạo nhiều biến dị có lợi.", a: ["1", "2", "3", "4"], c: 1 },
+            { q: "Phát biểu đúng về mục đích buộc chặt cành ghép: I. Mạch gỗ dễ di chuyển | II. Cành không rơi | III. Nước không chảy ra | IV. Cành không rụng lá.", a: ["1", "2", "3", "4"], c: 2 },
+            { q: "Bản chất của sự thụ tinh là:", a: ["kết hợp đực và cái thành con non.", "kết hợp giao tử đực và cái thành hợp tử.", "kết hợp tinh trùng và trứng thành con non.", "tổ hợp vật chất di truyền của giao tử đực và cái trong hợp tử."], c: 3 },
+            { q: "Phát biểu đúng về quả: I. Do bầu nhụy sinh trưởng | II. Bảo vệ hạt | III. Do noãn đã thụ tinh | IV. Không vai trò phát tán | V. Cung cấp dinh dưỡng.", a: ["1", "2", "3", "4"], c: 2 },
+            { q: "Ví dụ sinh sản vô tính: I. Rau má - thân bò | II. Rêu - thân rễ | III. Cỏ gấu - thân bò | IV. Khoai tây - rễ củ | V. Cây sống đời - lá. Có mấy ý đúng?", a: ["1", "2", "3", "4"], c: 1 },
+            { q: "Sinh sản bằng bào tử có ở những ngành nào: (1) Hạt trần, (2) Rêu, (3) Quyết, (4) Hạt kín?", a: ["(1) và (2)", "(1) và (4)", "(2) và (3)", "(3) và (4)"], c: 2 },
+            { q: "Nhận định đúng về thụ tinh kép: I. Hai giao tử đực cùng thụ tinh | II. Tất cả TV sinh sản hữu tính đều có | III. Chỉ có ở thực vật hạt kín | IV. Chỉ có ở thực vật hạt trần.", a: ["1", "2", "3", "4"], c: 2 },
+            { q: "Người ta quan tâm đến phương pháp chiết cành vì:", a: ["quả chất lượng hơn trồng từ hạt.", "sống thọ hơn.", "thích nghi cao hơn.", "giữ lại các đặc điểm của cây mẹ."], c: 3 },
+            { q: "Nhận định về hạn chế của phương pháp chiết cành?", a: ["Rễ ăn nông dễ đổ ngã.", "Ra hoa kết quả nhanh.", "Cây thấp dễ chăm sóc.", "Giữ đặc điểm tốt của cây mẹ."], c: 0 },
+            { q: "Vì sao cây ăn quả lâu năm thường được chiết cành?", a: ["Dễ trồng, ít công chăm.", "Nhân nhanh và tạo nhiều đặc tính tốt.", "Tránh sâu bệnh gây hại.", "Rút ngắn thời gian sinh trưởng, sớm thu hoạch, biết trước đặc tính quả."], c: 3 },
+            { q: "Thụ phấn là quá trình:", a: ["hạt phấn phát tán và rơi trên núm nhụy.", "hợp nhất nhân giao tử đực và trứng.", "hạt phấn rơi từ nhụy đến núm nhị.", "hợp nhất hai nhân tinh trùng với trứng."], c: 0 },
+            { q: "Trong sinh sản sinh dưỡng ở thực vật, cây mới tạo ra từ:", a: ["một bộ phận sinh dưỡng của mẹ.", "bộ phận rễ.", "bộ phận thân.", "bộ phận lá."], c: 0 },
+            { q: "Vì sao sinh sản hữu tính ở thực vật tạo ra tổ hợp gene đa dạng?", a: ["Giống hệt mẹ qua thụ tinh.", "Truyền từ mẹ sang con qua nguyên phân.", "Điều hòa bởi kiểm soát chu kì tế bào.", "Truyền từ mẹ sang con qua giảm phân, thụ tinh và nguyên phân."], c: 3 },
+            { q: "Sinh sản vô tính thường gặp ở:", a: ["động vật cấu tạo đơn giản.", "động vật có xương sống.", "hầu hết không xương và có xương.", "tất cả động vật."], c: 0 },
+            { q: "Sinh sản vô tính là hình thức:", a: ["cần cả bố và mẹ.", "không có kết hợp giao tử đực và cái.", "có sự kết hợp giao tử đực và cái.", "chủ yếu ở động vật có xương sống."], c: 1 },
+            { q: "Hormone điều hoà hoạt động buồng trứng là:", a: ["GnRH, FSH, LH và testosterone.", "GnRH, FSH, LH, progesterone và estrogen.", "FSH, LH và GnRH.", "LH, progesterone và GnRH."], c: 1 },
+            { q: "Ong đực có bộ nhiễm sắc thể là:", a: ["n", "4n", "2n", "3n"], c: 0 },
+            { q: "Trong chăn nuôi, kỹ thuật KHÔNG được áp dụng để chọn giới tính tinh trùng là:", a: ["lọc tinh trùng", "ly tâm", "điện ly", "chiếu tia UV"], c: 3 },
+            { q: "Biện pháp KHÔNG được sử dụng để làm thay đổi số con ở vật nuôi là:", a: ["sử dụng hoocmôn kích thích tổng hợp", "thay đổi môi trường sống", "nuôi cấy phôi", "thụ tinh nhân tạo"], c: 0 },
+            { q: "Đặc trưng KHÔNG thuộc sinh sản hữu tính là:", a: ["hình thành và hợp nhất giao tử.", "luôn có tái tổ hợp bộ gene.", "luôn gắn liền với giảm phân.", "thế hệ con đồng nhất về đặc tính di truyền."], c: 3 },
+            { q: "Biện pháp nào KHÔNG được coi là biện pháp sinh đẻ có kế hoạch?", a: ["tính ngày rụng trứng", "thắt ống dẫn tinh", "nạo, hút thai", "uống thuốc ngừa thai"], c: 2 },
+            { q: "Biện pháp nào KHÔNG đúng với sinh đẻ có kế hoạch?", a: ["Điều chỉnh khoảng cách sinh.", "Điều chỉnh giới tính trai/gái.", "Điều chỉnh thời điểm sinh.", "Điều chỉnh số con."], c: 1 },
+            { q: "Điều nào KHÔNG đúng khi nói về hậu quả nạo phá thai?", a: ["Mất máu, viêm nhiễm.", "Là biện pháp sinh đẻ có kế hoạch.", "Có thể tử vong.", "Có thể gây vô sinh."], c: 1 },
+            { q: "Nói về sinh sản hữu tính, điều KHÔNG đúng là:", a: ["Gắn liền giảm phân và thụ tinh.", "Luôn cần cơ thể đực và cái.", "Tạo đời con đa dạng.", "Ít hiệu quả khi mật độ thấp."], c: 1 },
+            { q: "Tuyến yên tiết ra chất nào: 1. FSH | 2. Testosteron | 3. LH | 4. GnRH | 5. Estrogen?", a: ["(1) và (4).", "(3) và (4).", "(1) và (2).", "(1) và (3)."], c: 3 },
+            { q: "Có bao nhiêu yếu tố ảnh hưởng lớn đến điều hòa sinh tinh/trứng: (1) Hệ thần kinh, (2) Nhân tố bên trong, (3) Nhân tố bên ngoài, (4) Hệ nội tiết, (5) Hệ đệm?", a: ["2", "3", "4", "5"], c: 2 },
+            { q: "Vì sao cấm xác định giới tính thai nhi?", a: ["Ảnh hưởng tâm lý mẹ.", "Tâm lý người thân.", "Ảnh hưởng phát triển thai.", "Gây mất cân bằng giới tính xã hội."], c: 3 },
+            { q: "Nói về sinh sản hữu tính, điều KHÔNG đúng là:", a: ["Gắn liền giảm phân và thụ tinh.", "Luôn cần cơ thể đực và cái.", "Tạo đời con đa dạng.", "Ít hiệu quả khi mật độ thấp."], c: 1 },
+            { q: "Hạn chế của sinh sản vô tính là:", a: ["Con không đồng nhất di truyền.", "Con đồng nhất, thích ứng đồng nhất.", "Con đồng nhất, thích ứng kém môi trường biến đổi.", "Con đồng nhất, thích ứng chậm chạp."], c: 2 },
+            { q: "Đặc điểm KHÔNG đúng với sinh sản vô tính ở động vật?", a: ["Tạo số lượng lớn nhanh chóng.", "Ổn định di truyền.", "Sống độc lập vẫn sinh sản.", "Thích nghi cao môi trường biến đổi."], c: 3 },
+            { q: "Hình thức đẻ con có ưu điểm nào: (1) Dinh dưỡng phong phú, nhiệt độ thích hợp | (2) Phôi được bảo vệ tốt | (3) Tỷ lệ chết thấp | (4) Gây khó bắt mồi | (5) Phải ăn nhiều hơn?", a: ["(1) và (2)", "(1) và (3)", "(2), (3) và (5)", "(1), (2) và (3)"], c: 3 },
+            { q: "Quá trình sinh sản hữu tính ở động vật gồm mấy giai đoạn chính: (1) Tạo giao tử, (2) Thụ tinh, (3) Lớn lên, (4) Phát triển phôi thai?", a: ["1", "2", "3", "4"], c: 2 },
+            { q: "Hình thức đẻ trứng có ưu điểm: (1) Không khó khăn khi di chuyển | (2) Vỏ cứng bảo vệ phôi | (3) Tỷ lệ nở thấp | (4) Dễ bị tiêu diệt?", a: ["(1) và (2)", "(1) và (3)", "(2) và (4)", "(2) và (3)"], c: 0 },
+            { q: "Thụ tinh chéo tiến hóa hơn tự thụ tinh vì:", a: ["Diễn ra phức tạp.", "Con nhận vật chất di truyền từ 2 nguồn bố mẹ.", "Có sự tham gia của 2 giới.", "Không cần nước."], c: 1 },
+            { q: "Ý nào KHÔNG đúng với sinh đẻ có kế hoạch?", a: ["Điều chỉnh số con.", "Điều chỉnh thời điểm.", "Điều chỉnh giới tính trai/gái.", "Điều chỉnh khoảng cách."], c: 2 },
+            { q: "Biện pháp giảm nạo phá thai tuổi vị thành niên?", a: ["Không quan hệ.", "Không ra khỏi nhà khuya.", "Giáo dục tình dục an toàn.", "Vệ sinh cá nhân."], c: 2 }
+        ];
+
+        let currentIndex = 0;
+        let score = 0;
+        let canAnswer = true;
+
+        const questionText = document.getElementById('question-text');
+        const answersGrid = document.getElementById('answers-grid');
+        const currentIndexLabel = document.getElementById('current-index');
+        const currentScoreLabel = document.getElementById('current-score');
+        const progress = document.getElementById('progress');
+        const feedback = document.getElementById('feedback');
+        const nextBtn = document.getElementById('next-btn');
+        const resultScreen = document.getElementById('result-screen');
+        const questionContainer = document.getElementById('question-container');
+
+        function loadQuestion() {
+            canAnswer = true;
+            nextBtn.classList.add('hidden');
+            feedback.className = "hidden mt-6 p-4 rounded-2xl text-center font-bold text-lg animate-bounce";
+            
+            const currentQ = quizData[currentIndex];
+            questionText.textContent = currentQ.q;
+            currentIndexLabel.textContent = `Câu hỏi ${currentIndex + 1}/${quizData.length}`;
+            progress.style.width = `${((currentIndex) / quizData.length) * 100}%`;
+            
+            answersGrid.innerHTML = '';
+            currentQ.a.forEach((option, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'answer-btn w-full p-4 text-left rounded-2xl border-2 border-gray-100 bg-white hover:border-blue-400 font-medium text-slate-700 flex items-center justify-between group';
+                btn.innerHTML = `
+                    <span>${String.fromCharCode(65 + index)}. ${option}</span>
+                    <div class="w-6 h-6 rounded-full border-2 border-gray-200 flex items-center justify-center group-hover:border-blue-400"></div>
+                `;
+                btn.onclick = () => checkAnswer(index, btn);
+                answersGrid.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selectedIndex, btn) {
+            if (!canAnswer) return;
+            canAnswer = false;
+
+            const correct = quizData[currentIndex].c;
+            const buttons = answersGrid.querySelectorAll('button');
+            
+            buttons.forEach((b, i) => {
+                b.disabled = true;
+                if (i === correct) {
+                    b.classList.replace('border-gray-100', 'border-green-500');
+                    b.classList.add('bg-green-50');
+                    b.querySelector('div').innerHTML = '<i class="fas fa-check text-green-500"></i>';
+                }
+            });
+
+            if (selectedIndex === correct) {
+                score++;
+                currentScoreLabel.textContent = `Điểm: ${score}`;
+                feedback.textContent = "Chính xác! Cố gắng phát huy nhé!";
+                feedback.classList.add('text-green-600', 'bg-green-100');
+            } else {
+                btn.classList.replace('border-gray-100', 'border-red-500');
+                btn.classList.add('bg-red-50');
+                btn.querySelector('div').innerHTML = '<i class="fas fa-times text-red-500"></i>';
+                feedback.textContent = `Sai rồi! Đáp án đúng là ${String.fromCharCode(65 + correct)}`;
+                feedback.classList.add('text-red-600', 'bg-red-100');
+            }
+
+            feedback.classList.remove('hidden');
+            nextBtn.classList.remove('hidden');
+        }
+
+        nextBtn.onclick = () => {
+            currentIndex++;
+            if (currentIndex < quizData.length) {
+                loadQuestion();
+            } else {
+                showResult();
+            }
+        };
+
+        function showResult() {
+            questionContainer.classList.add('hidden');
+            nextBtn.classList.add('hidden');
+            feedback.classList.add('hidden');
+            resultScreen.classList.remove('hidden');
+            progress.style.width = '100%';
+            
+            const percent = Math.round((score / quizData.length) * 100);
+            document.getElementById('final-score').textContent = `Bạn đạt được ${score}/${quizData.length} câu đúng (${percent}%)`;
+            
+            let comment = "";
+            if (percent >= 90) comment = "Xuất sắc! Bạn là một thiên tài Sinh học!";
+            else if (percent >= 70) comment = "Rất tốt! Kiến thức của bạn khá vững chắc.";
+            else if (percent >= 50) comment = "Khá ổn, nhưng cần ôn tập kỹ hơn một chút nhé.";
+            else comment = "Đừng nản chí, hãy đọc lại sách giáo khoa và thử lại nhé!";
+            
+            document.getElementById('score-comment').textContent = comment;
+        }
+
+        function resetGame() {
+            currentIndex = 0;
+            score = 0;
+            currentScoreLabel.textContent = `Điểm: 0`;
+            resultScreen.classList.add('hidden');
+            questionContainer.classList.remove('hidden');
+            loadQuestion();
+        }
+
+        window.onload = loadQuestion;
+    </script>
+</body>
+</html>
